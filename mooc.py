@@ -4,6 +4,7 @@ import re
 import time
 import os
 import stdiomask
+import traceback
 import prettytable as pt
 
 
@@ -25,18 +26,17 @@ def login(uname, password):
 def cons_cookies(login_res):
     cookies = 'lv=' + login_res.cookies['lv'] + '; fid=' + login_res.cookies['fid'] + '; _uid=' + login_res.cookies[
         '_uid'] + '; uf=' + \
-        login_res.cookies['uf'] + '; _d=' + login_res.cookies['_d'] + '; UID=' + login_res.cookies[
+              login_res.cookies['uf'] + '; _d=' + login_res.cookies['_d'] + '; UID=' + login_res.cookies[
                   'UID'] + '; vc=' + login_res.cookies[
-        'vc'] + '; vc2=' + login_res.cookies['vc2'] + '; vc3=' + login_res.cookies['vc3'] + '; xxtenc=' + \
-        login_res.cookies[
-        'xxtenc'] + '; DSSTASH_LOG=' + login_res.cookies['DSSTASH_LOG'] + ';' + 'source=""; spaceFid=24846; ' \
-        'spaceRoleId="" '
+                  'vc'] + '; vc2=' + login_res.cookies['vc2'] + '; vc3=' + login_res.cookies['vc3'] + '; xxtenc=' + \
+              login_res.cookies[
+                  'xxtenc'] + '; DSSTASH_LOG=' + login_res.cookies['DSSTASH_LOG'] + ';' + 'source=""; spaceFid=24846; ' \
+                                                                                          'spaceRoleId="" '
 
     return cookies
 
 
 def require_id():
-
     data = {
         "courseType": 1,
         "courseFolderId": 0,
@@ -103,7 +103,7 @@ def require_id():
             clazzid = index_row_list[14]
 
             require_chapterid_url = "https://mooc2-ans.chaoxing.com/mycourse/studentcourse?courseid=" + \
-                courseId + "&clazzid=" + clazzid + "&ut=s"
+                                    courseId + "&clazzid=" + clazzid + "&ut=s"
             chapterid_text = session.get(
                 require_chapterid_url, headers=headers).text
             chapterId_list = re.findall(
@@ -139,7 +139,7 @@ def require_list(courseId, chapterId, clazzid):
 
 def require_coursename(courseId, clazzid):
     coursename_url = "https://mobilelearn.chaoxing.com/v2/apis/class/getClassDetail?fid=24846&courseId=" + \
-        courseId + "&classId=" + clazzid
+                     courseId + "&classId=" + clazzid
     while True:
         try:
             coursename_text = (session.get(
@@ -148,11 +148,11 @@ def require_coursename(courseId, clazzid):
         except:
             print("网络请求失败,正在尝试重连.若等待时常过久,还请重新启动程序!")
     coursename = re.findall(r'"name":"(.*?)","', coursename_text)[1]
-    coursename_path = "d:\\CHAOXING\\" + coursename
+    coursename_path = "./" + coursename
     # 创建文件夹
     coursename_path = coursename_path.strip()
     # 去除尾部 \ 符号
-    coursename_path = coursename_path.rstrip("\\")
+    coursename_path = coursename_path.rstrip("/")
     # 判断路径是否存在
     # 存在     True
     # 不存在   False
@@ -175,12 +175,12 @@ def download_video(htm_obj, clazzid, courseId, all_id_list, coursename):
                 '//*[@id="' + str(all_id) + '"]/span/em/text()')[0]  # 章节名称
             big_title_name = htm_obj.xpath(
                 '//*[@id="' + str(all_id) + '"]/span/text()')[0]  # 标题名称
-            path_initial = "d:\\CHAOXING\\" + coursename + "\\" + \
-                big_chapter_name + big_title_name.strip() + "\\"
+            path_initial = "./" + coursename + "/" + \
+                           big_chapter_name + big_title_name.strip() + "/"
             # 创建文件夹
             path = path_initial.strip()
             # 去除尾部 \ 符号
-            path = path.rstrip("\\")
+            path = path.rstrip("/")
             # 判断路径是否存在
             # 存在     True
             # 不存在   False
@@ -211,53 +211,55 @@ def download_video(htm_obj, clazzid, courseId, all_id_list, coursename):
                     break
                 except:
                     print("网络请求失败,正在尝试重连.若等待时常过久,还请重新启动程序!")
-            object_id = re.findall(
-                r'"doublespeed":\d+,"objectid":"(.*?)","_jobid":"', res)[0]  # 用于获取json数据
+            object_id = re.findall(r'"doublespeed":\d+,"objectid":"(.*?)","_jobid":"', res)  # 用于获取json数据
+            if len(object_id) > 0:
+                object_id = object_id[0]
+                # 此url 是用来获取下载地址用的 请求该地址会获取一个json格式 451fd649397bccc34a28fea241cc0b5d是objectid
+                json_url = "https://mooc1.chaoxing.com/ananas/status/" + \
+                           object_id + "?k=24846&flag=normal"
+                while True:
+                    try:
+                        json_res = (session.get(json_url, headers=headers)).json()
+                        break
+                    except:
+                        print("网络请求失败,正在尝试重连.若等待时常过久,还请重新启动程序!")
+                download_url = json_res["http"]  # 下载地址
 
-            # 此url 是用来获取下载地址用的 请求该地址会获取一个json格式 451fd649397bccc34a28fea241cc0b5d是objectid
-            json_url = "https://mooc1.chaoxing.com/ananas/status/" + \
-                object_id + "?k=24846&flag=normal"
-            while True:
-                try:
-                    json_res = (session.get(json_url, headers=headers)).json()
-                    break
-                except:
-                    print("网络请求失败,正在尝试重连.若等待时常过久,还请重新启动程序!")
-            download_url = json_res["http"]  # 下载地址
+                # 思维导图
+                png_object_id_list = re.findall(
+                    r'"insertimage","objectid":"(.*?)"},"aid"', res)
+                if len(png_object_id_list) != 0:
+                    png_object_id = png_object_id_list[0]
+                    mind_png_url = "https://p.ananas.chaoxing.com/star3/origin/" + png_object_id + ".png"
+                    mind_png = (session.get(mind_png_url, headers=headers)).content
+                    isExists_png = os.path.exists(
+                        path_initial + str(chapter_name) + '.png')
+                    if not isExists_png:
+                        with open(path_initial + str(chapter_name) + '.png', 'wb') as f:
+                            f.write(mind_png)
+                            print("已下载思维导图")
+                    else:
+                        print(str(chapter_name) + ' 思维导图已存在')
 
-            # 思维导图
-            png_object_id_list = re.findall(
-                r'"insertimage","objectid":"(.*?)"},"aid"', res)
-            if len(png_object_id_list) != 0:
-                png_object_id = png_object_id_list[0]
-                mind_png_url = "https://p.ananas.chaoxing.com/star3/origin/" + png_object_id + ".png"
-                mind_png = (session.get(mind_png_url, headers=headers)).content
-                isExists_png = os.path.exists(
-                    path_initial + str(chapter_name) + '.png')
-                if not isExists_png:
-                    with open(path_initial + str(chapter_name) + '.png', 'wb') as f:
-                        f.write(mind_png)
-                        print("已下载思维导图")
+                # get 请求下载地址 转换为字节流
+                media = (session.get(download_url, headers=headers)).content
+
+                # 写入文件
+                isExists_file = os.path.exists(
+                    path_initial + str(chapter_name + title_name) + '.mp4')
+                if not isExists_file:
+                    with open(path_initial + str(chapter_name + title_name) + '.mp4', 'wb') as f:
+                        f.write(media)
                 else:
-                    print(str(chapter_name) + ' 思维导图已存在')
-
-            # get 请求下载地址 转换为字节流
-            media = (session.get(download_url, headers=headers)).content
-
-            # 写入文件
-            isExists_file = os.path.exists(
-                path_initial + str(chapter_name + title_name) + '.mp4')
-            if not isExists_file:
-                with open(path_initial + str(chapter_name + title_name) + '.mp4', 'wb') as f:
-                    f.write(media)
+                    print(str(chapter_name + title_name) + ' 课程已存在')
             else:
-                print(str(chapter_name + title_name) + ' 课程已存在')
-
+                print(0)
 
 def view():
     view_table = pt.PrettyTable()
     view_table.field_names = ["作者", "联系方式", "注意事项", "支持网站", "下载路径"]
-    view_table.add_row(["GlowXuthusFly", "2579290631@qq.com", "本程序仅供学习交流,请勿传播,否则后果自负!!!\n 切勿将已下载视频进行传播,否则后果自负!!!",
+    view_table.add_row(["GlowXuthusFly", "2579290631@qq.com",
+                        "本程序仅供学习交流,请勿传播,否则后果自负!!!\n 切勿将已下载视频进行传播,否则后果自负!!!",
                         "https://www.chaoxing.com/", "默认下载路径为 d:\\CHAOXING\\"])
     print(view_table.get_string(title="POWER BY GlowXuthusFly"))
 
@@ -268,8 +270,8 @@ if __name__ == '__main__':
     while True:
         try:
             while True:
-                uname = input("请输入您的账号:")
-                password = stdiomask.getpass(prompt="请输入您的密码:", mask='*')
+                uname = "FILL IN YOUR USERNAME HERE"
+                password = "FILL IN THE PASSPORT HERE"
                 login_res = login(uname, password)
                 login_res_json = login_res.json()['status']
                 if login_res_json:
@@ -301,8 +303,8 @@ if __name__ == '__main__':
             coursename = require_coursename(courseId, clazzid)
             download_video(htm_obj, clazzid, courseId, all_id_list, coursename)
             break
-        except:
+        except Exception as e:
+            traceback.print_exc()
             print("未知错误,正在重试")
             time.sleep(3)
     print("视频下载完成,感谢您的使用!")
-    os.system('pause')
